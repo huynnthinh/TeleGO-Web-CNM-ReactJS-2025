@@ -18,6 +18,9 @@ import {
   FaUserFriends,
   FaCamera,
   FaPen,
+  FaTimes,
+  FaChevronLeft,
+  FaChevronRight,
   FaPoll,
 } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
@@ -584,6 +587,11 @@ const MediaGallery = ({ groupId, userId, isGroup }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Modal states
+  const [modalOpen, setModalOpen] = useState(false);
+  const [currentMedia, setCurrentMedia] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
   useEffect(() => {
     const fetchMediaFiles = async () => {
       setLoading(true);
@@ -658,20 +666,79 @@ const MediaGallery = ({ groupId, userId, isGroup }) => {
     }
   }, [groupId, userId, isGroup]);
 
-  const renderMediaItem = (item) => {
+  // Open modal with media
+  const openModal = (item, index) => {
+    setCurrentMedia(item);
+    setCurrentIndex(index);
+    setModalOpen(true);
+  };
+
+  // Close modal
+  const closeModal = () => {
+    setModalOpen(false);
+    setCurrentMedia(null);
+  };
+
+  // Navigate to previous/next media
+  const navigateMedia = (direction) => {
+    const activeFiles = getActiveFiles();
+    let newIndex;
+
+    if (direction === "prev") {
+      newIndex = currentIndex > 0 ? currentIndex - 1 : activeFiles.length - 1;
+    } else {
+      newIndex = currentIndex < activeFiles.length - 1 ? currentIndex + 1 : 0;
+    }
+
+    setCurrentIndex(newIndex);
+    setCurrentMedia(activeFiles[newIndex]);
+  };
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (modalOpen) {
+        if (e.key === "Escape") {
+          closeModal();
+        } else if (e.key === "ArrowLeft") {
+          navigateMedia("prev");
+        } else if (e.key === "ArrowRight") {
+          navigateMedia("next");
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyPress);
+    return () => document.removeEventListener("keydown", handleKeyPress);
+  }, [modalOpen, currentIndex]);
+
+  const renderMediaItem = (item, index) => {
     if (item.type.startsWith("image/")) {
       return (
-        <div className="media-item" key={`${item.messageId}-${item.url}`}>
+        <div
+          className="media-item clickable"
+          key={`${item.messageId}-${item.url}`}
+          onClick={() => openModal(item, index)}
+        >
           <img src={item.url} alt="Media content" />
+          <div className="media-overlay">
+            <FaImage />
+          </div>
         </div>
       );
     } else if (item.type.startsWith("video/")) {
       return (
-        <div className="media-item" key={`${item.messageId}-${item.url}`}>
-          <video controls>
+        <div
+          className="media-item clickable"
+          key={`${item.messageId}-${item.url}`}
+          onClick={() => openModal(item, index)}
+        >
+          <video>
             <source src={item.url} type={item.type} />
-            Your browser does not support video playback.
           </video>
+          <div className="media-overlay">
+            <FaVideo />
+          </div>
         </div>
       );
     } else {
@@ -705,48 +772,225 @@ const MediaGallery = ({ groupId, userId, isGroup }) => {
   };
 
   return (
-    <div className="media-gallery">
-      <h4 className="gallery-title">Media Gallery</h4>
-      <div className="media-tabs">
-        <button
-          className={`tab-btn ${activeTab === "images" ? "active" : ""}`}
-          onClick={() => setActiveTab("images")}
-        >
-          <FaImage /> Images ({mediaFiles.images.length})
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "videos" ? "active" : ""}`}
-          onClick={() => setActiveTab("videos")}
-        >
-          <FaVideo /> Videos ({mediaFiles.videos.length})
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "gifs" ? "active" : ""}`}
-          onClick={() => setActiveTab("gifs")}
-        >
-          GIFs ({mediaFiles.gifs.length})
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "others" ? "active" : ""}`}
-          onClick={() => setActiveTab("others")}
-        >
-          <FaFile /> Others ({mediaFiles.others.length})
-        </button>
+    <>
+      <div className="media-gallery">
+        <h4 className="gallery-title">Media Gallery</h4>
+        <div className="media-tabs">
+          <button
+            className={`tab-btn ${activeTab === "images" ? "active" : ""}`}
+            onClick={() => setActiveTab("images")}
+          >
+            <FaImage /> Images ({mediaFiles.images.length})
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "videos" ? "active" : ""}`}
+            onClick={() => setActiveTab("videos")}
+          >
+            <FaVideo /> Videos ({mediaFiles.videos.length})
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "gifs" ? "active" : ""}`}
+            onClick={() => setActiveTab("gifs")}
+          >
+            GIFs ({mediaFiles.gifs.length})
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "others" ? "active" : ""}`}
+            onClick={() => setActiveTab("others")}
+          >
+            <FaFile /> Others ({mediaFiles.others.length})
+          </button>
+        </div>
+        <div className="media-content">
+          {loading ? (
+            <div className="loading-state">Loading...</div>
+          ) : error ? (
+            <div className="error-state">{error}</div>
+          ) : getActiveFiles().length === 0 ? (
+            <div className="empty-state">No {activeTab} shared</div>
+          ) : (
+            <div className="media-grid">
+              {getActiveFiles().map((item, index) =>
+                renderMediaItem(item, index)
+              )}
+            </div>
+          )}
+        </div>
       </div>
-      <div className="media-content">
-        {loading ? (
-          <div className="loading-state">Loading...</div>
-        ) : error ? (
-          <div className="error-state">{error}</div>
-        ) : getActiveFiles().length === 0 ? (
-          <div className="empty-state">No {activeTab} shared</div>
-        ) : (
-          <div className="media-grid">
-            {getActiveFiles().map(renderMediaItem)}
+
+      {/* Modal */}
+      {modalOpen && currentMedia && (
+        <div className="media-modal" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeModal}>
+              <FaTimes />
+            </button>
+
+            {/* Navigation buttons */}
+            {getActiveFiles().length > 1 && (
+              <>
+                <button
+                  className="modal-nav prev"
+                  onClick={() => navigateMedia("prev")}
+                >
+                  <FaChevronLeft />
+                </button>
+                <button
+                  className="modal-nav next"
+                  onClick={() => navigateMedia("next")}
+                >
+                  <FaChevronRight />
+                </button>
+              </>
+            )}
+
+            {/* Media content */}
+            <div className="modal-media">
+              {currentMedia.type.startsWith("image/") ? (
+                <img src={currentMedia.url} alt="Full size media" />
+              ) : currentMedia.type.startsWith("video/") ? (
+                <video controls autoPlay>
+                  <source src={currentMedia.url} type={currentMedia.type} />
+                  Your browser does not support video playback.
+                </video>
+              ) : null}
+            </div>
+
+            {/* Media info */}
+            <div className="modal-info">
+              <span>
+                {currentIndex + 1} / {getActiveFiles().length}
+              </span>
+              <span>
+                {new Date(currentMedia.timestamp).toLocaleDateString()}
+              </span>
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        .media-item.clickable {
+          cursor: pointer;
+          position: relative;
+          transition: transform 0.2s;
+        }
+
+        .media-item.clickable:hover {
+          transform: scale(1.05);
+        }
+
+        .media-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.2s;
+          color: white;
+          font-size: 20px;
+        }
+
+        .media-item.clickable:hover .media-overlay {
+          opacity: 1;
+        }
+
+        .media-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.9);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+
+        .modal-content {
+          position: relative;
+          max-width: 90%;
+          max-height: 90%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .modal-close {
+          position: absolute;
+          top: -40px;
+          right: 0;
+          background: rgba(255, 255, 255, 0.1);
+          border: none;
+          color: white;
+          font-size: 20px;
+          padding: 10px;
+          cursor: pointer;
+          border-radius: 50%;
+          z-index: 1001;
+        }
+
+        .modal-nav {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          background: rgba(255, 255, 255, 0.1);
+          border: none;
+          color: white;
+          font-size: 24px;
+          padding: 15px;
+          cursor: pointer;
+          border-radius: 50%;
+          z-index: 1001;
+        }
+
+        .modal-nav.prev {
+          left: -60px;
+        }
+
+        .modal-nav.next {
+          right: -60px;
+        }
+
+        .modal-media img,
+        .modal-media video {
+          max-width: 100%;
+          max-height: 80vh;
+          object-fit: contain;
+        }
+
+        .modal-info {
+          position: absolute;
+          bottom: -40px;
+          left: 0;
+          color: white;
+          display: flex;
+          gap: 20px;
+          font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+          .modal-nav {
+            padding: 10px;
+            font-size: 18px;
+          }
+
+          .modal-nav.prev {
+            left: -50px;
+          }
+
+          .modal-nav.next {
+            right: -50px;
+          }
+        }
+      `}</style>
+    </>
   );
 };
 

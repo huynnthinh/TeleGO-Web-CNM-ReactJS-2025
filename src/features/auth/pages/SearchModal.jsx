@@ -5,7 +5,7 @@ import { debounce } from "lodash";
 import UserProfilePage from "../../../components/layout/UserProfilePage";
 import Swal from "sweetalert2";
 
-// const socket = io("http://localhost:5000");
+// const socket = io("https://telego-backend.onrender.com");
 
 const SearchModal = ({ onClose }) => {
   const [searchQuery, setSearchQuery] = useState("");

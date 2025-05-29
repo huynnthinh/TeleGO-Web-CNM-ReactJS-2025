@@ -71,7 +71,7 @@ const HomePage = () => {
   const [lastAction, setLastAction] = useState(null);
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState([]);
-  const [forwardMessageId, setForwardMessageId] = useState(null);
+  const [forwardMessageId, setForwardMessageId] = useState([]);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [lastMessages, setLastMessages] = useState({});
   const [unreadConversations, setUnreadConversations] = useState({});
@@ -93,7 +93,10 @@ const HomePage = () => {
   const [selectedItems, setSelectedItems] = useState([]);
   const SYSTEM_USER_ID = "68356b60184881aa5558a25a";
   const [showCreatePollModal, setShowCreatePollModal] = useState(false);
-  const [socket, setSocket] = useState(() => io("https://telego-backend.onrender.com")); // Tự động chọn "Danh sách bạn bè" khi nhấn vào tab Contacts
+  const [birthdayUsers, setBirthdayUsers] = useState([]);
+  const [socket, setSocket] = useState(() =>
+    io("https://telego-backend.onrender.com")
+  ); // Tự động chọn "Danh sách bạn bè" khi nhấn vào tab Contacts
   useEffect(() => {
     if (newMessage.trim().length >= 1000) {
       toast.error("Tin nhắn không được vượt quá 1000 ký tự!");
@@ -482,6 +485,57 @@ const HomePage = () => {
     }
   };
 
+  const handleSendBirthdayWish = (user) => {
+    const birthdayMessages = [
+      "🎉 Chúc mừng sinh nhật! Mong bạn luôn hạnh phúc và thành công!",
+      "🎂 Chúc bạn một ngày sinh nhật thật nhiều niềm vui và tiếng cười!",
+      "🎁 Sinh nhật vui vẻ nhé! Chúc mọi điều ước của bạn trở thành hiện thực!",
+      "🌟 Mong rằng tuổi mới sẽ mang đến cho bạn nhiều trải nghiệm tuyệt vời!",
+    ];
+
+    const inputOptions = birthdayMessages.reduce((options, msg, index) => {
+      options[index] = msg;
+      return options;
+    }, {});
+
+    Swal.fire({
+      title: "🎈 Gửi lời chúc mừng sinh nhật",
+      input: "select",
+      inputOptions,
+      inputPlaceholder: "🎉 Chọn một lời chúc",
+      showCancelButton: true,
+      confirmButtonText: "🎉 Gửi lời chúc",
+      cancelButtonText: "❌ Hủy",
+      customClass: {
+        popup: "custom-swal-popup",
+        title: "custom-swal-title",
+        input: "custom-swal-input",
+        actions: "custom-swal-actions",
+        confirmButton: "custom-swal-confirm",
+        cancelButton: "custom-swal-cancel",
+      },
+      width: "600px", // ✅ Chiều ngang cụ thể
+      maxWidth: "90vw", // ✅ Giới hạn không vượt quá 90% chiều ngang màn hình
+      padding: "1.5rem",
+      backdrop: `rgba(0,0,0,0.5)`,
+      color: "#333",
+      didOpen: () => {
+        const selectElement = Swal.getInput();
+        if (selectElement) {
+          selectElement.style.maxHeight = "150px";
+          selectElement.style.overflowY = "auto";
+          selectElement.style.whiteSpace = "normal"; // ✅ Để nội dung option xuống dòng nếu dài
+        }
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        const selectedMsg = birthdayMessages[result.value];
+        handleSendMessage({ message: selectedMsg });
+        toast.success(`🎉 Đã gửi lời chúc mừng sinh nhật đến ${user.name}!`);
+      }
+    });
+  };
+
   const fetchUserData = async (userId) => {
     try {
       if (!userId) {
@@ -537,6 +591,11 @@ const HomePage = () => {
       const allConvs = [];
       const lastMessagesData = {};
 
+      // Lấy ngày hiện tại
+      const today = new Date();
+      const todayDay = today.getDate();
+      const todayMonth = today.getMonth() + 1; // getMonth() trả về 0-11, cần +1
+
       for (const msg of lastMessagesResponse.data) {
         const convId =
           msg.groupId || msg.users.find((uid) => uid !== currentUserId);
@@ -545,7 +604,10 @@ const HomePage = () => {
             ? `${msg.message.slice(0, 35)}...`
             : msg.message;
 
+        let displayLastMessage;
+
         if (msg.groupId) {
+          displayLastMessage = lastMessageContent || "";
           const group = groupMap.get(convId);
           if (group) {
             allConvs.push({
@@ -553,7 +615,7 @@ const HomePage = () => {
               name: group.groupName || "Unnamed Group",
               status: "",
               avatar: group.avatar || "/default-group-avatar.png",
-              lastMessage: lastMessageContent || "",
+              lastMessage: displayLastMessage,
               type: "group",
             });
           } else {
@@ -562,7 +624,7 @@ const HomePage = () => {
               name: "Archived Group",
               status: "",
               avatar: "/default-group-avatar.png",
-              lastMessage: lastMessageContent || "",
+              lastMessage: displayLastMessage,
               type: "archived_group",
             });
           }
@@ -585,12 +647,22 @@ const HomePage = () => {
             }
           }
           if (friend._id !== currentUserId) {
+            displayLastMessage = lastMessageContent || "";
+            if (friend.birthDate) {
+              const birthDate = new Date(friend.birthDate);
+              const birthDay = birthDate.getDate();
+              const birthMonth = birthDate.getMonth() + 1;
+              if (birthDay === todayDay && birthMonth === todayMonth) {
+                displayLastMessage = `🎉 Hôm nay là sinh nhật của ${friend.fullName}!`;
+              }
+            }
+
             allConvs.push({
               id: friend._id,
               name: friend.fullName || "Deleted User",
               status: friend.status === "online" ? "Active now" : "Offline",
               avatar: friend.avatar || "/default-avatar.png",
-              lastMessage: lastMessageContent || "",
+              lastMessage: displayLastMessage,
               phoneNumber: friend.phoneNumber || "",
               birthday: friend.birthDate || "",
               gender: friend.gender || "",
@@ -600,7 +672,7 @@ const HomePage = () => {
         }
 
         lastMessagesData[convId] = {
-          content: lastMessageContent || "",
+          content: displayLastMessage,
           fromSelf: msg.fromSelf,
           createdAt: msg.createdAt,
         };
@@ -612,9 +684,21 @@ const HomePage = () => {
         return new Date(bTime) - new Date(aTime);
       });
 
+      // Lọc danh sách người có sinh nhật hôm nay
+      const birthdayFriends = allConvs.filter((conv) => {
+        if (conv.birthday) {
+          const birthDate = new Date(conv.birthday);
+          const birthDay = birthDate.getDate();
+          const birthMonth = birthDate.getMonth() + 1;
+          return birthDay === todayDay && birthMonth === todayMonth;
+        }
+        return false;
+      });
+
       setConversations(allConvs);
       setFilteredConversations(allConvs);
       setLastMessages(lastMessagesData);
+      setBirthdayUsers(birthdayFriends); // Lưu danh sách người có sinh nhật
 
       if (selectedUser) {
         const updatedSelectedUser = allConvs.find(
@@ -631,6 +715,7 @@ const HomePage = () => {
       toast.error("Failed to load conversations. Please try again.");
       setConversations([]);
       setFilteredConversations([]);
+      setBirthdayUsers([]);
       return [];
     }
   };
@@ -763,10 +848,13 @@ const HomePage = () => {
   const handleAcceptFriend = async (friendId) => {
     try {
       // Gửi yêu cầu chấp nhận kết bạn
-      await axios.post("https://telego-backend.onrender.com/api/friends/accept-friend", {
-        idUser1: friendId, // Người gửi lời mời
-        idUser2: currentUserId, // Người chấp nhận
-      });
+      await axios.post(
+        "https://telego-backend.onrender.com/api/friends/accept-friend",
+        {
+          idUser1: friendId, // Người gửi lời mời
+          idUser2: currentUserId, // Người chấp nhận
+        }
+      );
 
       // Hiển thị thông báo thành công
       toast.success("Đã chấp nhận yêu cầu kết bạn!");
@@ -815,10 +903,13 @@ const HomePage = () => {
 
   const handleRejectFriend = async (friendId) => {
     try {
-      await axios.post("https://telego-backend.onrender.com/api/friends/reject-friend", {
-        idUser1: currentUserId,
-        idUser2: friendId,
-      });
+      await axios.post(
+        "https://telego-backend.onrender.com/api/friends/reject-friend",
+        {
+          idUser1: currentUserId,
+          idUser2: friendId,
+        }
+      );
       toast.success("Đã từ chối yêu cầu kết bạn!");
       fetchFriendRequests();
     } catch (error) {
@@ -840,6 +931,7 @@ const HomePage = () => {
         pinned: false,
         isImage: isGif,
         fileUrls: isGif ? [message] : [],
+        fileTypes: isGif ? ["image/gif"] : [],
       };
 
       setMessages((prev) => [...prev, newMsg]);
@@ -1295,10 +1387,13 @@ const HomePage = () => {
 
   const handleDeleteForMe = async (messageId) => {
     try {
-      await axios.post(`https://telego-backend.onrender.com/api/messages/deletemsgforme`, {
-        messageId,
-        userId: currentUserId,
-      });
+      await axios.post(
+        `https://telego-backend.onrender.com/api/messages/deletemsgforme`,
+        {
+          messageId,
+          userId: currentUserId,
+        }
+      );
 
       setMessages((prev) =>
         prev.map((msg) =>
@@ -1355,10 +1450,13 @@ const HomePage = () => {
     try {
       // Gọi API xóa từng tin nhắn đã chọn
       const deletePromises = selectedMessages.map((messageId) =>
-        axios.post(`https://telego-backend.onrender.com/api/messages/deletemsgforme`, {
-          messageId,
-          userId: currentUserId,
-        })
+        axios.post(
+          `https://telego-backend.onrender.com/api/messages/deletemsgforme`,
+          {
+            messageId,
+            userId: currentUserId,
+          }
+        )
       );
 
       await Promise.all(deletePromises);
@@ -1396,35 +1494,73 @@ const HomePage = () => {
 
   // Cập nhật hàm handleForwardMessage để hỗ trợ nhiều tin nhắn
   const handleForwardMessage = async () => {
-    if (selectedRecipients.length === 0) {
-      toast.error("Vui lòng chọn ít nhất một người nhận!");
+    if (selectedRecipients.length === 0) return;
+
+    if (!Array.isArray(forwardMessageId) || forwardMessageId.length === 0) {
+      setShowForwardModal(false);
+      setSelectedRecipients([]);
+      setForwardMessageId([]);
       return;
     }
 
     try {
+      const validMessages = messages.filter(
+        (msg) =>
+          forwardMessageId.includes(msg._id) &&
+          !msg.recalled &&
+          !msg.deletedForMe
+      );
+
+      if (validMessages.length === 0) {
+        setShowForwardModal(false);
+        setSelectedRecipients([]);
+        setForwardMessageId([]);
+        return;
+      }
+
       const forwardPromises = selectedRecipients.flatMap((recipientId) =>
         forwardMessageId.map((messageId) =>
-          axios.post(`https://telego-backend.onrender.com/api/messages/forwardmsg`, {
-            from: currentUserId,
-            to: recipientId,
-            messageId: messageId,
-          })
+          axios.post(
+            `https://telego-backend.onrender.com/api/messages/forwardmsg`,
+            {
+              from: currentUserId,
+              to: recipientId,
+              messageId: messageId,
+            }
+          )
         )
       );
 
-      await Promise.all(forwardPromises);
-      toast.success("Đã chuyển tiếp các tin nhắn thành công!");
-      setShowForwardModal(false);
-      setSelectedRecipients([]);
-      setForwardMessageId(null);
-      handleCancelSelection(); // Hủy chế độ chọn sau khi chuyển tiếp
+      const responses = await Promise.all(forwardPromises);
 
-      selectedRecipients.forEach((recipientId) => {
+      selectedRecipients.forEach((recipientId, index) => {
+        validMessages.forEach((msg, msgIndex) => {
+          const responseIndex = index * validMessages.length + msgIndex;
+          const responseData = responses[responseIndex]?.data;
+
+          if (!responseData?.message?._id) return;
+
+          socket.emit("send-msg", {
+            from: currentUserId,
+            to: recipientId,
+            message: msg.message,
+            createdAt: new Date(),
+            isImage: msg.isImage,
+            fileUrls: msg.fileUrls || [],
+            _id: responseData.message._id,
+            forwarded: true,
+          });
+        });
+
         moveConversationToTop(recipientId);
       });
-    } catch (error) {
-      console.error("Lỗi khi chuyển tiếp tin nhắn:", error);
-      toast.error("Không thể chuyển tiếp tin nhắn!");
+    } catch {
+      // Bỏ qua lỗi, không log, không toast
+    } finally {
+      setShowForwardModal(false);
+      setSelectedRecipients([]);
+      setForwardMessageId([]);
+      handleCancelSelection?.();
     }
   };
 
@@ -1436,7 +1572,8 @@ const HomePage = () => {
   };
 
   const handleMoreOptions = (messageId) => {
-    setForwardMessageId(messageId);
+    console.log("Setting forwardMessageId:", [messageId]);
+    setForwardMessageId([messageId]);
     setShowForwardModal(true);
     setShowMoreMenu(null);
   };
@@ -1510,105 +1647,99 @@ const HomePage = () => {
   useEffect(() => {
     socket.on("msg-receive", (data) => {
       console.log("Nhận tin nhắn cá nhân:", JSON.stringify(data, null, 2));
-      console.log("Selected user:", selectedUser);
-      console.log("Current user ID:", currentUserId);
 
-      // Chuẩn hóa ID
-      const fromId = data.from?.toString();
-      const toId = data.to?.toString();
-      const selectedUserId = selectedUser?.id?.toString();
+      // Kiểm tra loại sự kiện
+      if (data.type === "reaction-updated") {
+        fetchMessages(selectedUser.id);
+      } else {
+        // Xử lý các loại tin nhắn khác
+        const fromId = data.from?.toString();
+        const toId = data.to?.toString();
+        const selectedUserId = selectedUser?.id?.toString();
 
-      // Kiểm tra isCurrentConversation
-      const isCurrentConversation =
-        selectedUserId &&
-        (fromId === selectedUserId || toId === selectedUserId);
-      console.log("Is current conversation:", isCurrentConversation);
+        const isCurrentConversation =
+          selectedUserId &&
+          (fromId === selectedUserId || toId === selectedUserId);
 
-      // Hàm thêm tin nhắn mới
-      const addNewMessage = (prevMessages) => {
-        const existingMessage = prevMessages.find(
-          (msg) => msg._id === data._id
-        );
-        if (!existingMessage) {
-          const messageText =
-            typeof data.message === "object" && data.message !== null
-              ? data.message.text || JSON.stringify(data.message)
-              : data.message || "";
-          const newMessage = {
-            fromSelf: fromId === currentUserId,
-            message: messageText,
-            sender: fromId,
-            senderName: data.senderName || "Unknown",
-            fileUrls: data.fileUrls || [],
-            fileTypes: data.fileTypes || [],
-            isImage: data.isImage || false,
-            createdAt: data.createdAt || new Date().toISOString(),
-            _id: data._id || Date.now().toString(),
-            recalled: data.recalled || false,
-            reaction: data.reaction || null,
-            pinned: data.pinned || false,
-            replyTo: data.replyTo || null,
-          };
-          console.log("Adding new message:", newMessage);
-          return [...prevMessages, newMessage];
+        const addNewMessage = (prevMessages) => {
+          const existingMessage = prevMessages.find(
+            (msg) => msg._id === data._id
+          );
+          if (!existingMessage) {
+            const messageText =
+              typeof data.message === "object" && data.message !== null
+                ? data.message.text || JSON.stringify(data.message)
+                : data.message || "";
+            const newMessage = {
+              fromSelf: fromId === currentUserId,
+              message: messageText,
+              sender: fromId,
+              senderName: data.senderName || "Unknown",
+              fileUrls: data.fileUrls || [],
+              fileTypes: data.fileTypes || [],
+              isImage: data.isImage || false,
+              createdAt: data.createdAt || new Date().toISOString(),
+              _id: data._id || Date.now().toString(),
+              recalled: data.recalled || false,
+              reaction: data.reaction || null,
+              pinned: data.pinned || false,
+              replyTo: data.replyTo || null,
+            };
+            console.log("Adding new message:", newMessage);
+            return [...prevMessages, newMessage];
+          }
+          console.log("Message already exists:", data._id);
+          return prevMessages;
+        };
+
+        const userIdToMove = fromId === currentUserId ? toId : fromId;
+
+        let previewMessage =
+          typeof data.message === "object" && data.message !== null
+            ? data.message.text || JSON.stringify(data.message)
+            : data.message || "";
+        previewMessage =
+          previewMessage.slice(0, 20) +
+          (previewMessage.length > 20 ? "..." : "");
+        if (data.isImage) {
+          previewMessage = "[Hình ảnh]";
         }
-        console.log("Message already exists:", data._id);
-        return prevMessages;
-      };
 
-      // Xác định userIdToMove
-      const userIdToMove = fromId === currentUserId ? toId : fromId;
-      console.log("userIdToMove:", userIdToMove);
-
-      // Tạo preview message
-      let previewMessage =
-        typeof data.message === "object" && data.message !== null
-          ? data.message.text || JSON.stringify(data.message)
-          : data.message || "";
-      previewMessage =
-        previewMessage.slice(0, 20) + (previewMessage.length > 20 ? "..." : "");
-      if (data.isImage) {
-        previewMessage = "[Hình ảnh]";
-      }
-      console.log("Preview message:", previewMessage);
-
-      // Cập nhật conversations và lastMessages
-      moveConversationToTop(userIdToMove);
-      setLastMessages((prev) => ({
-        ...prev,
-        [userIdToMove]: {
-          content: previewMessage,
-          fromSelf: fromId === currentUserId,
-          createdAt: data.createdAt,
-        },
-      }));
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id?.toString() === userIdToMove
-            ? {
-                ...conv,
-                lastMessage:
-                  fromId === currentUserId
-                    ? `Bạn: ${previewMessage}`
-                    : previewMessage,
-              }
-            : conv
-        )
-      );
-
-      // Đánh dấu tin nhắn chưa đọc nếu không phải cuộc trò chuyện hiện tại
-      if (fromId !== currentUserId && !isCurrentConversation) {
-        setUnreadConversations((prev) => ({
+        moveConversationToTop(userIdToMove);
+        setLastMessages((prev) => ({
           ...prev,
-          [userIdToMove]: true,
+          [userIdToMove]: {
+            content: previewMessage,
+            fromSelf: fromId === currentUserId,
+            createdAt: data.createdAt,
+          },
         }));
-        setHasNewMessage(true);
-      }
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id?.toString() === userIdToMove
+              ? {
+                  ...conv,
+                  lastMessage:
+                    fromId === currentUserId
+                      ? `Bạn: ${previewMessage}`
+                      : previewMessage,
+                }
+              : conv
+          )
+        );
 
-      // Thêm tin nhắn vào messages nếu là cuộc trò chuyện hiện tại
-      if (isCurrentConversation) {
-        setMessages(addNewMessage);
-        setLastAction("newMessage");
+        if (fromId !== currentUserId && !isCurrentConversation) {
+          setUnreadConversations((prev) => ({
+            ...prev,
+            [userIdToMove]: true,
+          }));
+          setHasNewMessage(true);
+        }
+
+        if (isCurrentConversation) {
+          setMessages(addNewMessage);
+          setLastAction("newMessage");
+        }
       }
     });
 
@@ -1968,6 +2099,7 @@ const HomePage = () => {
                 sender: data.from,
                 senderName: data.senderName || "Unknown",
                 fileUrls: data.fileUrls || [],
+                fileTypes: data.fileTypes || [],
                 isImage: data.isImage || false,
                 createdAt: data.createdAt,
                 _id: data._id,
@@ -2684,9 +2816,12 @@ const HomePage = () => {
     if (option === "Đăng xuất") {
       try {
         // Gọi API logout để cập nhật trạng thái offline
-        await axios.post("https://telego-backend.onrender.com/api/users/logout", {
-          userId: currentUserId,
-        });
+        await axios.post(
+          "https://telego-backend.onrender.com/api/users/logout",
+          {
+            userId: currentUserId,
+          }
+        );
 
         // Xóa thông tin người dùng và chuyển hướng
         localStorage.removeItem("userId");
@@ -2760,7 +2895,7 @@ const HomePage = () => {
       if (showForwardModal && event.target.classList.contains("bg-overlay")) {
         setShowForwardModal(false);
         setSelectedRecipients([]);
-        setForwardMessageId(null);
+        setForwardMessageId([]);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -3171,6 +3306,10 @@ const HomePage = () => {
                 }
               }
 
+              const isBirthday = birthdayUsers.some(
+                (user) => user.id === conv.id
+              );
+
               return (
                 <div
                   key={conv.id}
@@ -3198,6 +3337,14 @@ const HomePage = () => {
                     <div className="flex justify-between">
                       <span className="text-sm font-semibold text-dark">
                         {conv.name}
+                        {isBirthday && (
+                          <span
+                            className="birthday-icon ml-2"
+                            title="Hôm nay là sinh nhật!"
+                          >
+                            🎉
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -3902,7 +4049,7 @@ const HomePage = () => {
                       <input
                         type="file"
                         accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-rar-compressed"
-                        onChange={handleFileUpload} // Đổi tên từ handleImageUpload thành handleFileUpload
+                        onChange={handleFileUpload}
                         style={{ display: "none" }}
                       />
                     </label>
@@ -3921,11 +4068,22 @@ const HomePage = () => {
                       🎞️
                     </button>
                     <button
-                      className="btn-icon btn-small btn-secondary1 "
+                      className="btn-icon btn-small btn-secondary1"
                       onClick={handleSendHeart}
                     >
                       ❤️
                     </button>
+                    {selectedUser &&
+                      birthdayUsers.some(
+                        (user) => user.id === selectedUser.id
+                      ) && (
+                        <button
+                          className="btn btn-small btn-primary ml-2"
+                          onClick={() => handleSendBirthdayWish(selectedUser)}
+                        >
+                          Gửi lời chúc mừng sinh nhật 🎂
+                        </button>
+                      )}
                   </>
                 )}
               </div>
@@ -4086,73 +4244,96 @@ const HomePage = () => {
         <SearchModal onClose={() => setShowSearchModal(false)} />
       )}
       {showForwardModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-overlay z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-96 max-h-[80vh] flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Chuyển tiếp tin nhắn</h2>
+        <div className="fwd-modal-overlay">
+          <div className="fwd-modal-container">
+            <div className="fwd-modal-header">
+              <h2 className="fwd-modal-title">Chuyển tiếp tin nhắn</h2>
               <button
                 onClick={() => {
                   setShowForwardModal(false);
                   setSelectedRecipients([]);
-                  setForwardMessageId(null);
+                  setForwardMessageId([]);
                 }}
-                className="text-gray-500 hover:text-gray-700"
+                className="fwd-modal-close-btn"
               >
                 ✕
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto mb-4">
+            {/* Phần xem trước tin nhắn */}
+            <div className="fwd-message-preview">
+              <h3 className="fwd-preview-title">Tin nhắn được chuyển tiếp:</h3>
+              {Array.isArray(forwardMessageId) &&
+              forwardMessageId.length > 0 ? (
+                forwardMessageId.map((msgId) => {
+                  const msg = messages.find((m) => m._id === msgId);
+                  return msg ? (
+                    <div key={msg._id} className="fwd-message-item">
+                      {msg.isImage && msg.fileUrls.length > 0 ? (
+                        <img
+                          src={msg.fileUrls[0]}
+                          alt="Forwarded Media"
+                          className="fwd-message-image"
+                        />
+                      ) : (
+                        <p className="fwd-message-text">
+                          {msg.message || "[Không có nội dung văn bản]"}
+                        </p>
+                      )}
+                    </div>
+                  ) : null;
+                })
+              ) : (
+                <p className="fwd-no-message">Không có tin nhắn được chọn</p>
+              )}
+            </div>
+            {/* Danh sách người nhận */}
+            <div className="fwd-recipient-list">
               {conversations.length > 0 ? (
                 conversations.map((conv) => (
-                  <div
-                    key={conv.id}
-                    className="flex items-center mb-4 p-2 hover:bg-gray-100"
-                  >
+                  <div key={conv.id} className="fwd-recipient-item">
                     <input
                       type="checkbox"
                       checked={selectedRecipients.includes(conv.id)}
                       onChange={() => handleRecipientToggle(conv.id)}
-                      className="mr-4"
+                      className="fwd-recipient-checkbox"
                     />
                     <div
-                      className="avatar mr-4"
+                      className="fwd-recipient-avatar"
                       style={{
                         backgroundImage: `url(${
                           conv.avatar || "/default-avatar.png"
                         })`,
-                        width: "40px",
-                        height: "40px",
                         backgroundSize: "cover",
                         borderRadius: "50%",
                       }}
                     ></div>
-                    <div className="flex-col flex-1">
-                      <span className="text-sm font-semibold text-dark">
-                        {conv.name}
+                    <div className="fwd-recipient-info">
+                      <span className="fwd-recipient-name">{conv.name}</span>
+                      <span className="fwd-recipient-status">
+                        {conv.status}
                       </span>
-                      <span className="text-xs text-gray">{conv.status}</span>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-gray-500 text-center">
+                <p className="fwd-no-recipients">
                   Không có bạn bè nào để chuyển tiếp
                 </p>
               )}
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="fwd-modal-footer">
               <button
-                className="btn btn-small btn-secondary"
+                className="fwd-btn fwd-btn-secondary"
                 onClick={() => {
                   setShowForwardModal(false);
                   setSelectedRecipients([]);
-                  setForwardMessageId(null);
+                  setForwardMessageId([]);
                 }}
               >
                 Hủy
               </button>
               <button
-                className="btn btn-small btn-primary"
+                className="fwd-btn fwd-btn-primary"
                 onClick={handleForwardMessage}
               >
                 Xác nhận

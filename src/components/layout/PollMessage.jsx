@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { toast } from 'react-toastify';
-import PollModal from './PollModal';// Import modal riêng biệt
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
+import PollModal from "./PollModal"; // Import modal riêng biệt
 
 const PollMessage = ({ poll, currentUserId, onVoteUpdate }) => {
   const [selectedOption, setSelectedOption] = useState(null);
@@ -10,16 +10,19 @@ const PollMessage = ({ poll, currentUserId, onVoteUpdate }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    const userVote = poll.options.findIndex(option => 
+    const userVote = poll.options.findIndex((option) =>
       option.votes.includes(currentUserId)
     );
-    
+
     if (userVote !== -1) {
       setSelectedOption(userVote);
       setHasVoted(true);
     }
 
-    const total = poll.options.reduce((sum, option) => sum + option.votes.length, 0);
+    const total = poll.options.reduce(
+      (sum, option) => sum + option.votes.length,
+      0
+    );
     setTotalVotes(total);
   }, [poll, currentUserId]);
 
@@ -45,12 +48,13 @@ const PollMessage = ({ poll, currentUserId, onVoteUpdate }) => {
       setSelectedOption(null);
       setHasVoted(false);
     }
-    
+
     const newTotal = updatedPoll.options.reduce(
-      (sum, option) => sum + option.votes.length, 0
+      (sum, option) => sum + option.votes.length,
+      0
     );
     setTotalVotes(newTotal);
-    
+
     // Gọi callback cấp trên
     onVoteUpdate && onVoteUpdate(updatedPoll);
   };
@@ -74,22 +78,22 @@ const PollMessage = ({ poll, currentUserId, onVoteUpdate }) => {
           const userVoted = option.votes.includes(currentUserId);
 
           return (
-            <div 
+            <div
               key={index}
-              className={`poll-option ${userVoted ? 'voted' : ''}`}
+              className={`poll-option ${userVoted ? "voted" : ""}`}
             >
               <div className="option-content">
                 <span className="option-text">{option.text}</span>
                 <span className="vote-count">{voteCount}</span>
               </div>
-              
+
               {hasVoted && (
-                <div 
+                <div
                   className="vote-progress"
                   style={{ width: `${percentage}%` }}
                 />
               )}
-              
+
               {hasVoted && (
                 <div className="option-stats">
                   <span className="percentage">{percentage}%</span>
@@ -102,9 +106,11 @@ const PollMessage = ({ poll, currentUserId, onVoteUpdate }) => {
 
       <div className="poll-actions">
         {!hasVoted ? (
-          <button className="poll-btn primary" onClick={openModal}>Bình chọn</button>
+          <button className="poll-btn primary" onClick={openModal}>
+            Bình chọn
+          </button>
         ) : (
-          <button 
+          <button
             className="poll-btn secondary"
             onClick={(e) => {
               e.stopPropagation();
@@ -115,10 +121,11 @@ const PollMessage = ({ poll, currentUserId, onVoteUpdate }) => {
           </button>
         )}
         <span className="poll-timestamp">
-          {new Date(poll.createdAt).toLocaleTimeString('vi-VN', {
-            hour: '2-digit',
-            minute: '2-digit'
-          })} Hôm nay
+          {new Date(poll.createdAt).toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}{" "}
+          Hôm nay
         </span>
       </div>
 
